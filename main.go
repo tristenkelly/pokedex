@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/tristenkelly/pokedex/internal/pokecache"
@@ -19,9 +20,9 @@ type cliCommand struct {
 }
 
 type Config struct {
-	Next     *string
-	Previous *string
-	cache    *pokecache.Cache
+	Next      *string
+	Previous  *string
+	cache     *pokecache.Cache
 	area_name *string
 }
 
@@ -32,6 +33,19 @@ type locationAreaResponse struct {
 }
 
 type LocationArea struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+type AreaEncounters struct {
+	PokemonEncounters []PokemonEncounter `json:"pokemon_encounters"`
+}
+
+type PokemonEncounter struct {
+	Pokemon NamedAPIResource `json:"pokemon"`
+}
+
+type NamedAPIResource struct {
 	Name string `json:"name"`
 	URL  string `json:"url"`
 }
@@ -48,17 +62,31 @@ func main() {
 		if scanner.Scan() {
 			userInput = scanner.Text()
 		}
-		if userInput == "exit" {
-			commandExit(cfg)
+		parts := strings.Fields(userInput)
+		if len(parts) == 0 {
+			continue
 		}
-		if userInput == "help" {
+
+		name := strings.Join(parts[1:], " ")
+		cfg.area_name = &name
+
+		cmd := parts[0]
+
+		args := parts[1:]
+
+		switch cmd {
+		case "explore":
+			if len(args) == 1 {
+				commandExplore(cfg)
+			} else {
+				fmt.Println("Usage: explore <area_name>")
+			}
+		case "help":
 			commandHelp(cfg)
-		}
-		if userInput == "map" {
+		case "exit":
+			commandExit(cfg)
+		case "map":
 			commandMap(cfg)
-		}
-		if userInput == "mapb" {
-			commandMapb(cfg)
 		}
 	}
 }
@@ -175,7 +203,53 @@ func commandMapb(cfg *Config) error {
 }
 
 func commandExplore(cfg *Config) error {
-	url := 
+	url := "https://pokeapi.co/api/v2/location-area/"
+	fullURL := url + *cfg.area_name
+	if data, ok := cfg.cache.Get(fullURL); ok {
+		fmt.Println("Using cached data for:", fullURL)
+		var pokemonData AreaEncounters
+		if err := json.Unmarshal(data, &pokemonData); err != nil {
+			fmt.Println("Error unmarshalling cached data:", err)
+			return err
+		}
+		for _, encounter := range pokemonData.PokemonEncounters {
+			fmt.Printf("%v\n", encounter.Pokemon.Name)
+		}
+		return nil
+	}
+
+	res, err := http.Get(fullURL)
+	if err != nil {
+		fmt.Println("Error fetching location areas:", err)
+		return err
+	}
+
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		fmt.Println("Error reading response body:", err)
+		return err
+	}
+	cfg.cache.Add(url, body)
+
+	if res.StatusCode != http.StatusOK {
+		fmt.Println("Failed to fetch location areas, status code:", res.StatusCode)
+		return fmt.Errorf("failed to fetch location areas, status code: %d", res.StatusCode)
+	}
+	var pokemonData AreaEncounters
+
+	if err = json.Unmarshal(body, &pokemonData); err != nil {
+		fmt.Println("Error unmarshalling response:", err)
+		return err
+	}
+	fmt.Printf("Exploring %v\n", *cfg.area_name)
+	fmt.Printf("Found Pokemon:\n")
+	for _, encounter := range pokemonData.PokemonEncounters {
+		fmt.Printf("- %v\n", encounter.Pokemon.Name)
+	}
+
+	return nil
 }
 
 var commands = map[string]cliCommand{
