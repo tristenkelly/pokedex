@@ -116,7 +116,7 @@ func processURL[T any](url string, target *T) ([]byte, error) {
 
 func calculateChance(pokemon Pokemon) bool {
 	maxChance := 100
-	difficulty := pokemon.BaseExperience / 10
+	difficulty := pokemon.BaseExperience / 5
 
 	if difficulty > maxChance {
 		difficulty = maxChance
@@ -250,7 +250,7 @@ func commandCatch(cfg *Config, args ...string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Throwing a pokeball at %s...\n", pokemonName)
+	fmt.Printf("- Throwing a Pokeball at %s...\n", pokemonName)
 	fmt.Printf("Pokemon: %s, Height: %v\n", pokemonName, pokemon.Height)
 
 	if calculateChance(pokemon) {
@@ -262,6 +262,39 @@ func commandCatch(cfg *Config, args ...string) error {
 		cfg.pokedex[pokemonName] = pokemon
 	} else {
 		fmt.Printf("%s escaped!\n", pokemonName)
+	}
+	return nil
+}
+
+func commandInspect(cfg *Config, args ...string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("you must enter a pokemon name")
+	}
+
+	pokemonName := args[0]
+	caughtPokemon := cfg.pokedex
+
+	pokemon, ok := caughtPokemon[pokemonName]
+	if !ok {
+		return fmt.Errorf("you haven't caught this pokemon")
+	} else {
+		fmt.Printf("Name: %s\n", pokemon.Name)
+		fmt.Printf("Height: %v\n", pokemon.Height)
+		fmt.Printf("Base Experience: %v\n", pokemon.BaseExperience)
+	}
+	return nil
+}
+
+func commandPokedex(cfg *Config, args ...string) error {
+	caughtPokemon := cfg.pokedex
+
+	if len(caughtPokemon) >= 1 {
+		fmt.Printf("Your Pokedex:\n")
+		for pokemon := range caughtPokemon {
+			fmt.Printf("- %s\n", caughtPokemon[pokemon].Name)
+		}
+	} else {
+		return fmt.Errorf("you haven't caught any pokemon")
 	}
 	return nil
 }
@@ -291,6 +324,16 @@ var commands = map[string]cliCommand{
 		name:        "catch",
 		description: "Catches selected pokemon",
 		callback:    commandCatch,
+	},
+	"inspect": {
+		name:        "inspect",
+		description: "Gives pokemon information",
+		callback:    commandInspect,
+	},
+	"pokedex": {
+		name:        "pokedex",
+		description: "Displays pokedex information",
+		callback:    commandPokedex,
 	},
 }
 
