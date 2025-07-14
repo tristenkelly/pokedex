@@ -1,4 +1,4 @@
-package internal
+package pokecache
 
 import (
 	"sync"
@@ -23,7 +23,7 @@ func NewCache(interval time.Duration) *Cache {
 	return cache
 }
 
-func (c *Cache) Add() (key string, val []byte) {
+func (c *Cache) Add(key string, val []byte) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -31,7 +31,7 @@ func (c *Cache) Add() (key string, val []byte) {
 		createdAt: time.Now(),
 		val:       val,
 	}
-	return key, val
+
 }
 
 func (c *Cache) Get(key string) ([]byte, bool) {

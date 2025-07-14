@@ -7,6 +7,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
+
+	"github.com/tristenkelly/pokedex/internal/pokecache"
 )
 
 type cliCommand struct {
@@ -18,6 +21,8 @@ type cliCommand struct {
 type Config struct {
 	Next     *string
 	Previous *string
+	cache    *pokecache.Cache
+	area_name *string
 }
 
 type locationAreaResponse struct {
@@ -32,14 +37,16 @@ type LocationArea struct {
 }
 
 func main() {
-	input := bufio.NewScanner(os.Stdin)
-	cfg := &Config{}
+	scanner := bufio.NewScanner(os.Stdin)
+	cfg := &Config{
+		cache: pokecache.NewCache(30 * time.Second),
+	}
 
 	for {
 		fmt.Print("PokeDex > ")
 		userInput := ""
-		if input.Scan() {
-			userInput = input.Text()
+		if scanner.Scan() {
+			userInput = scanner.Text()
 		}
 		if userInput == "exit" {
 			commandExit(cfg)
@@ -79,6 +86,21 @@ func commandMap(cfg *Config) error {
 		fmt.Println("You're on the first page")
 		url = "https://pokeapi.co/api/v2/location-area/?limit=20"
 	}
+
+	if data, ok := cfg.cache.Get(url); ok {
+		fmt.Println("Using cached data for:", url)
+		var locationData locationAreaResponse
+		if err := json.Unmarshal(data, &locationData); err != nil {
+			fmt.Println("Error unmarshalling cached data:", err)
+			return err
+		}
+		cfg.Next = locationData.Next
+		for _, area := range locationData.Results {
+			fmt.Printf("%v\n", area.Name)
+		}
+		return nil
+	}
+
 	res, err := http.Get(url)
 	if err != nil {
 		fmt.Println("Error fetching location areas:", err)
@@ -92,6 +114,7 @@ func commandMap(cfg *Config) error {
 		fmt.Println("Error reading response body:", err)
 		return err
 	}
+	cfg.cache.Add(url, body)
 
 	if res.StatusCode != http.StatusOK {
 		fmt.Println("Failed to fetch location areas, status code:", res.StatusCode)
@@ -151,6 +174,10 @@ func commandMapb(cfg *Config) error {
 	return nil
 }
 
+func commandExplore(cfg *Config) error {
+	url := 
+}
+
 var commands = map[string]cliCommand{
 	"exit": {
 		name:        "exit",
@@ -166,6 +193,11 @@ var commands = map[string]cliCommand{
 		name:        "map",
 		description: "Fetches and displays location areas from the PokeAPI",
 		callback:    commandMap,
+	},
+	"explore": {
+		name:        "explore",
+		description: "Lists pokemon in location area",
+		callback:    commandExplore,
 	},
 }
 
